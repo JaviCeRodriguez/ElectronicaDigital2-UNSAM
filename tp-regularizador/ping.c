@@ -541,34 +541,46 @@ void setup_ethctlr() //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 	//// el bit 31, para habilitar las interrupciones globales. Global Interrupt Enable Register (0x07F8),
 	//// página 18. Dirección absoluta: 0x40e007F8
 	eth_ctlr->gie |= (1 << 31); // Global Interrupt Enable
-															
+
+	//// 
 	eth_ctlr->rx_ping_control |= ((1<< 3));
 }
 
 void eth_tx(size_t len) //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 {
+	//// Ingresa al Transmit Control Register (Ping) y obtiene mediante una máscara los valores de bits
+	//// Status (bit 0) y Program (bit 1). Mientras sean iguales a 0x11, no sale de la función.
+	//// Transmit Control Register (0x07FC), página 19. Dirección absoluta: 0x40e007FC
 	while(eth_ctlr->tx_ping_control & (0x2 | 0x1));
 
 	eth_ctlr->tx_ping_length  = len;
-													
+
+	//// Ingresa al Transmit Control Register (Ping) y aplica una máscara para obtener valores de
+	//// bits Status (bit 0) e Interrupt Enable (bit 3). Transmit Control Register (0x07FC), página 19.
+	//// Dirección absoluta: 0x40e007FC				
 	eth_ctlr->tx_ping_control |= ((1<< 3) | (1 << 0));
 
 	if (loglevel & ETH_LOG) xil_printf("eth_ctlr->tx_ping_control 0x%08x\n\r", eth_ctlr->tx_ping_control);
 	if (loglevel & ETH_LOG) xil_printf("eth_ctlr->tx_ping_length  0x%08x\n\r", eth_ctlr->tx_ping_length);
 }
 
-void setup_intctlr(void)
+void setup_intctlr(void) //// Documentación: ./documents/pg099-axi-intc.pdf
 {
 
 	if (loglevel & INTC_LOG) xil_printf("Init Interrupt Controller\r\n");
 	if (loglevel & INTC_LOG) xil_printf("*************************\r\n");
 
+	//// Deshabilita las interrupciones en Master Enable Register (MER).
+	//// Página 23. Dirección absoluta 0x4120001C
 	intp_ctlr->mer = 0;
-									
+	//// Deshabilita las interrupciones en Interrupt Enable Register (IER).
+	//// Página 18. Dirección absoluta 0x41200008
 	intp_ctlr->ier = 0;
-									
+	//// Activa las interrupciones en Interrupt Acknowledge Register (IAR).
+	//// Página 19. Dirección absoluta 0x4120000C
 	intp_ctlr->iar = 0xffffffff;
-									
+	//// Activa las interrupciones en Interrupt Mode Register (IMR).
+	//// Página 19. Dirección absoluta 0x41200020							
 	intp_ctlr->imr = 0;
 
 	// Interrupt Vector Register Reset for Fast Interrupt
@@ -589,7 +601,7 @@ void setup_intctlr(void)
 	intp_ctlr->mer |= (0x2 | 0x01);
 }
 
-void dmacpy(void volatile *dst, const void volatile *src, size_t len)
+void dmacpy(void volatile *dst, const void volatile *src, size_t len) //// Documentación: ./documents/pg034-axi-cdma.pdf
 {
 	if (loglevel & DMA_LOG) xil_printf("set DMA Controller\r\n");
 
