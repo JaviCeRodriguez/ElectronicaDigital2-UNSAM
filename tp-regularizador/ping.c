@@ -593,11 +593,14 @@ void setup_intctlr(void) //// Documentación: ./documents/pg099-axi-intc.pdf
 
 	Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT, (Xil_ExceptionHandler) InterruptHandler, (void *) 0);
 	Xil_ExceptionEnable();
-
+	//// Asignación de interrupciones de DMA y Ethernet en Interrupt Enable Register (IER).
+	//// Página 18. Dirección absoluta 0x41200008
 	intp_ctlr->ier |= IE_MASK;
-									
+	//// Muestra interrupciones activas de Interrupt Enable Register (IER) por consola.
+	//// Página 18. Dirección absoluta 0x41200008
 	if (loglevel & INTC_LOG) xil_printf("intp_ctlr->ier 0x%08x\n\r", intp_ctlr->ier);
-
+	//// Habilita interrupciones en los bits ME (bit 0) y HIE (bit 1) en Master Enable Register (MER).
+	//// Página 23. Dirección absoluta 0x4120001C
 	intp_ctlr->mer |= (0x2 | 0x01);
 }
 
@@ -607,6 +610,9 @@ void dmacpy(void volatile *dst, const void volatile *src, size_t len) //// Docum
 
 	dma_state = dma_busy;
 
+	//// Ingresa al CDMASR Register para chequear el bit 1 (Idle). Mientras que sean no
+	//// sale de la función. CDMASR (CDMA Status – Offset 04h).
+	//// Página 22, dirección absoluta: 0x44a00004
 	while(!(dma_ctlr->cdmasr & DMA_SRMSK_IDLE));
 
 	dma_ctlr->cdmacr |=  DMA_CRMSK_IRQEN;  // DMA Ctlr's Enable Interrupt
