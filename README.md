@@ -14,6 +14,6 @@ Repositorio para entrega de guías y trabajos prácticos (cursada y final)
     -   [Guía 5](https://github.com/JaviCeRodriguez/ElectronicaDigital2-UNSAM/tree/main/guias/guia_5)
 -   [**TP Regularizador de cursada**](https://github.com/JaviCeRodriguez/ElectronicaDigital2-UNSAM/tree/main/tp-regularizador)
     -   [Ejercicio ping.c con comentarios de funcionamiento](https://github.com/JaviCeRodriguez/ElectronicaDigital2-UNSAM/blob/main/tp-regularizador/ping.c)
-    -   Máquina de estados (no disponible aún)
+    -   [Máquina de estados](https://github.com/JaviCeRodriguez/ElectronicaDigital2-UNSAM/tree/main/tp-regularizador/stateMachine)
     -   [Documentación](https://github.com/JaviCeRodriguez/ElectronicaDigital2-UNSAM/tree/main/tp-regularizador/documents)
 -   **TP Final (no disponible)**
