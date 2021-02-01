@@ -521,9 +521,8 @@ int main(void)
 
 void setup_ethctlr() //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 {
-	//// En las siguientes dos líneas, se configura una nueva MAC Address, cargando un 0x0 y un 0x4, a los
-	//// 4 bits más significativos y a los 2 bits menos significativos, respectivamente.
-	//// Página 19 y 29. Dirección absoluta: 0x40e007FC
+	//// En el registro Transmit Length Register, se almacena datos almacenados en la dirección MAC.
+	//// Página 18. Dirección absoluta: 0x40e007F4
 	eth_ctlr->tx_ping_data[0] = *(((int *) my_mac)+0);
 	eth_ctlr->tx_ping_data[1] = *(((int *) my_mac)+1);
 
