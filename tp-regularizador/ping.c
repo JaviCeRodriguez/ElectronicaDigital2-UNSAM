@@ -273,7 +273,7 @@ int eth_state;
 void ethctlr_handler () //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 {
 	//// Ingresa al Receive Control Register (Ping) y verifica si hay un paquete
-	//// listo para ser procesado. Receive Control Register (0x17FC), página 22.
+	//// listo para ser procesado. Receive Control Register (0x17FC), página 21.
 	//// Dirección absoluta: 0x40e017FC
 	if (eth_ctlr->rx_ping_control & (1<< 0)) {
 		if ((loglevel & INTH_LOG) && (loglevel & ETH_LOG)) xil_printf("recevied packet\r\n");
@@ -282,7 +282,7 @@ void ethctlr_handler () //// Documentación: ./documents/pg135-axi-ethernetlite.
 
 		//// Ingresa al Receive Control Register (Ping) y verifica si el bit de Status
 		//// pueda aceptar un nuevo paquete.
-		//// Receive Control Register (0x17FC), página 22. Dirección absoluta: 0x40e017FC
+		//// Receive Control Register (0x17FC), página 21. Dirección absoluta: 0x40e017FC
 		eth_ctlr->rx_ping_control &= ~(1<< 0);
 	}
 	//// Ingresa al Transmit Control Register (Ping) y verifica que estén habilitadas
@@ -521,8 +521,9 @@ int main(void)
 
 void setup_ethctlr() //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 {
-	//// En el registro Transmit Length Register, se almacena datos almacenados en la dirección MAC.
-	//// Página 18. Dirección absoluta: 0x40e007F4
+	//// En el Dual Port Memory se almacenan los datos de transmisión, a partir de 0x00 los primeros 4 bits y
+	//// 0x04 los siguientes 4 bits.
+	//// Página 29. Dirección absoluta: 0x40e00000 y 0x40e00004
 	eth_ctlr->tx_ping_data[0] = *(((int *) my_mac)+0);
 	eth_ctlr->tx_ping_data[1] = *(((int *) my_mac)+1);
 
@@ -541,7 +542,9 @@ void setup_ethctlr() //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 	//// página 18. Dirección absoluta: 0x40e007F8
 	eth_ctlr->gie |= (1 << 31); // Global Interrupt Enable
 
-	//// 
+	//// Ingresa al Receive Control Register (Ping) para habilitar las interrupciones a través del
+	//// Interrupt Enable (bit 3)
+	//// Receive Control Register (0x17FC), página 21. Dirección absoluta: 0x40e017FC
 	eth_ctlr->rx_ping_control |= ((1<< 3));
 }
 
@@ -552,6 +555,8 @@ void eth_tx(size_t len) //// Documentación: ./documents/pg135-axi-ethernetlite.
 	//// Transmit Control Register (0x07FC), página 19. Dirección absoluta: 0x40e007FC
 	while(eth_ctlr->tx_ping_control & (0x2 | 0x1));
 
+	//// En el registro Transmit Length Register, se almacena el largo del dato transmitido.
+	//// Página 18. Dirección absoluta: 0x40e007F4
 	eth_ctlr->tx_ping_length  = len;
 
 	//// Ingresa al Transmit Control Register (Ping) y aplica una máscara para obtener valores de
@@ -614,13 +619,28 @@ void dmacpy(void volatile *dst, const void volatile *src, size_t len) //// Docum
 	//// Página 22, dirección absoluta: 0x44a00004
 	while(!(dma_ctlr->cdmasr & DMA_SRMSK_IDLE));
 
+	//// Ingresa al CDMACR Register para setear a 1 el bit IOC_IrqEn (bit 12).
+	//// CDMACR (CDMA Control – Offset 00h), página 16.
+	//// Dirección absoluta 0x44a00000
 	dma_ctlr->cdmacr |=  DMA_CRMSK_IRQEN;  // DMA Ctlr's Enable Interrupt
-																					
+
+	//// Ingresa al CDMACR Register para limpiar el bit Err_IrqEn (bit 14).		
+	//// CDMACR (CDMA Control – Offset 00h), página 15.
+	//// Dirección absoluta 0x44a00000										
 	dma_ctlr->cdmacr &= ~DMA_CRMSK_IRQERR; // DMA Ctlr's Disable Error Interrupt
 
+	//// Ingresa al SA Register para setear la dirección orígen.
+	//// SA (CDMA Source Address – Offset 18h), página 27.
+	//// Dirección absoluta 0x44a00018
 	dma_ctlr->sa  = (int) src;			// Set DMA Source Address
-																					
-	dma_ctlr->da  = (int) dst;			// Set DMA Destiantion Address
-																					
+
+	//// Ingresa al DA Register para setear la dirección destino.
+	//// DA (CDMA Destination Address – Offset 20h), página 29.
+	//// Dirección absoluta 0x44a00020																		
+	dma_ctlr->da  = (int) dst;			// Set DMA Destination Address
+
+	//// Ingreso al para determinar BTT Regiser la cantidad de bits de transferencia.			
+	//// BTT (CDMA Bytes to Transfer – Offset 28h), página 31.
+	//// Dirección absoluta es 0x44a028						
 	dma_ctlr->btt = len; 				// Set DMA Byte Transfer
 }
