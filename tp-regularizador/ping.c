@@ -272,29 +272,30 @@ int eth_state;
 
 void ethctlr_handler () //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 {
-	//// Ingresa al Receive Control Register (Ping) y verifica si hay un paquete
+	//// Ingresa al bit 0 (status) del Receive Control Register (Ping) y verifica si hay un paquete
 	//// listo para ser procesado. Receive Control Register (0x17FC), página 21.
 	//// Dirección absoluta: 0x40e017FC
 	if (eth_ctlr->rx_ping_control & (1<< 0)) {
 		if ((loglevel & INTH_LOG) && (loglevel & ETH_LOG)) xil_printf("recevied packet\r\n");
+		//// Estado de ethernet = Recibido
 		eth_state |= (1 << RX_PKT);
 		/* Clear the Interrupt */
 
-		//// Ingresa al Receive Control Register (Ping) y verifica si el bit de Status
-		//// pueda aceptar un nuevo paquete.
+		//// Limpia el buffer de recepción (bit = 0) del Receive Control Register (Ping)
 		//// Receive Control Register (0x17FC), página 21. Dirección absoluta: 0x40e017FC
 		eth_ctlr->rx_ping_control &= ~(1<< 0);
 	}
 	//// Ingresa al Transmit Control Register (Ping) y verifica que estén habilitadas
-	//// las interrupciones para transmitir. Transmit Control Register (0x07FC), página 19.
+	//// las interrupciones para transmitir (bit 3). Transmit Control Register (0x07FC), página 19.
 	//// Dirección absoluta: 0x40e007FC
 	if (eth_ctlr->tx_ping_control & (1<< 3)) {
 													
 		if ((loglevel & INTH_LOG) && (loglevel & ETH_LOG)) xil_printf("transmitted packet\r\n");
+		//// Estado de ethernet = Transmitido
 		eth_state |= (1 << TX_PKT);
 		/* Clear the Interrupt */
 		//// Ingresa al Transmit Control Register (Ping) y deshabilita interrupciones para
-		//// transmitir. Transmit Control Register (0x07FC), página 19.
+		//// transmitir (bit 3). Transmit Control Register (0x07FC), página 19.
 		//// Dirección absoluta: 0x40e007FC
 		eth_ctlr->tx_ping_control &= ~(1<< 3);
 	}
@@ -305,14 +306,15 @@ enum dma_states dma_state;
 
 void dmactlr_handler () //// Documentación: ./documents/pg034-axi-cdma.pdf
 {
+	//// Estado de DMA a Ready
 	dma_state = dma_ready;
 
 	/* Clear the Interrupt */
-	//// Ingresa al CDMASR Register y limpia (deshabilita) la interrupción para realizar
+	//// Ingresa al CDMASR Register y limpia (deshabilita) la interrupción (bit 12) para realizar
 	//// transferencia en la DMA. CDMASR (CDMA Status – Offset 04h), página 19.
 	//// Dirección absoluta: 0x44a00004
 	dma_ctlr->cdmasr &= ~DMA_CRMSK_IRQEN;
-	//// Ingresa al CDMASR Register y limpia la interrupción generada por un error.
+	//// Ingresa al CDMASR Register y limpia la interrupción (bit 14) generada por un error.
 	//// CDMASR (CDMA Status – Offset 04h), página 18.
 	//// Dirección absoluta: 0x44a00004	
 	dma_ctlr->cdmasr &= ~DMA_CRMSK_IRQERR;
@@ -322,17 +324,20 @@ void InterruptHandler(void *CallbackRef) //// Documentación: ./documents/pg099-
 {
 	for (int irq = 0; irq < 32; irq++) {
 		//// Ingresa al Interrupt Status Register y hace un barrido a lo largo del registro
-		//// para saber si hubo una interrupción en algún periférico. Interrupt Status Register (ISR),
-		//// página 15-16. Dirección absoluta: 0x41200000
+		//// para saber si hubo una interrupción en algún periférico (en nivel alto).
+		//// Interrupt Status Register (ISR), página 15-16. Dirección absoluta: 0x41200000
 		if (intp_ctlr->isr & (1 << irq)) {
 			switch(irq) {
 			case INTNUM_ETHERNET:
+				//// Llamada a la función ethctlr_handler, manipuladora de interrupciones por Ethernet
 				ethctlr_handler();
 				break;
 			case INTNUM_TIMER:
+				//// Llamada a la función timer_handler. No está implementada!
 				timer_handler();
 				break;
 			case INTNUM_DMA:
+				//// Llamada a la función dmactlr_handler, manipuladora de interrupciones por DMA
 				dmactlr_handler();
 				break;
 			default:
@@ -340,6 +345,7 @@ void InterruptHandler(void *CallbackRef) //// Documentación: ./documents/pg099-
 			}
 		}
 		//// Ingresa al Interrupt Acknowledge Register y limpia la interrupción de cada periférico.
+		//// De forma automática, el bit irq vuelve a 0
 		//// Interrupt Acknowledge Register (IAR), página 19. Dirección absoluta: 0x4120000C
 		intp_ctlr->iar = (1 << irq);
 	}
@@ -360,6 +366,7 @@ enum states {
 	txpkt_waitdma,
 	txpkt_dmacpied };
 
+//// Estado del programa = idle
 enum states state = idle;
 
 int main(void)
@@ -392,6 +399,7 @@ int main(void)
 			} 
 			break;
 		case rxpkt_mii:
+			//// Llamada a la función dmacpy, transmisión y recepción por DMA
 			dmacpy(buffer, (void *) eth_ctlr->rx_ping_data, sizeof(eth_ctlr->rx_ping_data));
 			if (loglevel & STATE_LOG) xil_printf("rxpkt_waitdma\r\n");
 			state = rxpkt_waitdma;
@@ -421,6 +429,7 @@ int main(void)
 				}
 				if (!memcmp(my_ipv4, ((struct arp_frm *) buffer)->arp4_hdr.tpa, sizeof(my_ipv4))) {
 					tx_length = sizeof(my_arp);
+					//// Llamada a la función dmacpy, transmisión y recepción por DMA
 					dmacpy(eth_ctlr->tx_ping_data, &my_arp, sizeof(int)*((tx_length+sizeof(int)-1)/sizeof(int)));
 					if (loglevel & STATE_LOG) xil_printf("txpkg_waitdma\r\n");
 					state = txpkt_waitdma;
@@ -480,6 +489,7 @@ int main(void)
 					}
 
 					tx_length = length;
+					//// Llamada a la función dmacpy, transmisión y recepción por DMA
 					dmacpy(eth_ctlr->tx_ping_data, buffer, sizeof(int)*((tx_length+sizeof(int)-1)/sizeof(int)));
 					if (loglevel & STATE_LOG) xil_printf("txpkg_waitdma\r\n");
 					state = txpkt_waitdma;
@@ -501,6 +511,7 @@ int main(void)
 				break;
 			case dma_ready:
 				if (loglevel & STATE_LOG) xil_printf("txpkt_dmacpied\r\n");
+				//// Llamada a la función eth_tx, transmisión por Ethernet
 				eth_tx(tx_length);
 				state = txpkt_dmacpied;
 				break;
@@ -521,19 +532,18 @@ int main(void)
 
 void setup_ethctlr() //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 {
-	//// En el Dual Port Memory se almacenan los datos de transmisión, a partir de 0x00 los primeros 4 bits y
-	//// 0x04 los siguientes 4 bits.
+	//// En el Dual Port Memory se almacenan los datos de transmisión a enviar, a partir de 0x00 los 4 bytes
+	//// más significativos y 0x04 los 2 bytes menos significativos.
 	//// Página 29. Dirección absoluta: 0x40e00000 y 0x40e00004
 	eth_ctlr->tx_ping_data[0] = *(((int *) my_mac)+0);
 	eth_ctlr->tx_ping_data[1] = *(((int *) my_mac)+1);
 
-	//// Se realiza operación lógica OR entre dos números. El resultado de esta operación,
-	//// Realiza una máscara, a modo de obtener los bits de intenerés del Transmit Control Register (Ping).
-	//// Página 19. Dirección absoluta: 0x40e007FC
+	//// Seteo en 1 al bit 0 y 1 (Status y Program) para cargar los 6 bytes en tx_ping_data.
+	//// Transmit Control Register (Ping). Página 19. Dirección absoluta: 0x40e007FC
 	eth_ctlr->tx_ping_control |= (0x2 | 0x1);
 
 	//// Se realiza una operación lógica AND entre el resultado de la operación OR y el contenido de
-	//// Transmit Control Register (Ping). El resultado puede ser true o false.
+	//// Transmit Control Register (Ping). Queda en bucle hasta que se produzcan cambios en el registro.
 	//// Página 19. Dirección absoluta: 0x40e007FC
 	while(eth_ctlr->tx_ping_control & (0x2 | 0x1));
 
@@ -551,17 +561,17 @@ void setup_ethctlr() //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 void eth_tx(size_t len) //// Documentación: ./documents/pg135-axi-ethernetlite.pdf
 {
 	//// Ingresa al Transmit Control Register (Ping) y obtiene mediante una máscara los valores de bits
-	//// Status (bit 0) y Program (bit 1). Mientras sean iguales a 0x11, no sale de la función.
+	//// Status (bit 0) y Program (bit 1). Mientras esté transmitiendo, no sale del bucle.
 	//// Transmit Control Register (0x07FC), página 19. Dirección absoluta: 0x40e007FC
 	while(eth_ctlr->tx_ping_control & (0x2 | 0x1));
 
-	//// En el registro Transmit Length Register, se almacena el largo del dato transmitido.
+	//// En el registro Transmit Length Register, se indica el largo del dato en bytes a transmitir.
 	//// Página 18. Dirección absoluta: 0x40e007F4
 	eth_ctlr->tx_ping_length  = len;
 
 	//// Ingresa al Transmit Control Register (Ping) y aplica una máscara para obtener valores de
-	//// bits Status (bit 0) e Interrupt Enable (bit 3). Transmit Control Register (0x07FC), página 19.
-	//// Dirección absoluta: 0x40e007FC				
+	//// bits Status (bit 0) e Interrupt Enable (bit 3). Inicia transmisión y habilita interrupciones.
+	//// Transmit Control Register (0x07FC), página 19. Dirección absoluta: 0x40e007FC				
 	eth_ctlr->tx_ping_control |= ((1<< 3) | (1 << 0));
 
 	if (loglevel & ETH_LOG) xil_printf("eth_ctlr->tx_ping_control 0x%08x\n\r", eth_ctlr->tx_ping_control);
@@ -583,8 +593,8 @@ void setup_intctlr(void) //// Documentación: ./documents/pg099-axi-intc.pdf
 	//// Activa las interrupciones en Interrupt Acknowledge Register (IAR).
 	//// Página 19. Dirección absoluta 0x4120000C
 	intp_ctlr->iar = 0xffffffff;
-	//// Activa las interrupciones en Interrupt Mode Register (IMR).
-	//// Página 19. Dirección absoluta 0x41200020							
+	//// Activa las interrupciones en modo normal en Interrupt Mode Register (IMR).
+	//// Página 24. Dirección absoluta 0x41200020							
 	intp_ctlr->imr = 0;
 
 	// Interrupt Vector Register Reset for Fast Interrupt
@@ -597,7 +607,7 @@ void setup_intctlr(void) //// Documentación: ./documents/pg099-axi-intc.pdf
 
 	Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT, (Xil_ExceptionHandler) InterruptHandler, (void *) 0);
 	Xil_ExceptionEnable();
-	//// Asignación de interrupciones de DMA y Ethernet en Interrupt Enable Register (IER).
+	//// Habilitación de interrupciones de DMA y Ethernet en Interrupt Enable Register (IER).
 	//// Página 18. Dirección absoluta 0x41200008
 	intp_ctlr->ier |= IE_MASK;
 	//// Muestra interrupciones activas de Interrupt Enable Register (IER) por consola.
@@ -614,19 +624,19 @@ void dmacpy(void volatile *dst, const void volatile *src, size_t len) //// Docum
 
 	dma_state = dma_busy;
 
-	//// Ingresa al CDMASR Register para chequear el bit 1 (Idle). Mientras que sean no
-	//// sale de la función. CDMASR (CDMA Status – Offset 04h).
+	//// Ingresa al CDMASR Register para chequear el bit 1 (Idle). Mientras que sea nivel bajo,
+	//// no sale del bucle. CDMASR (CDMA Status – Offset 04h).
 	//// Página 22, dirección absoluta: 0x44a00004
 	while(!(dma_ctlr->cdmasr & DMA_SRMSK_IDLE));
 
 	//// Ingresa al CDMACR Register para setear a 1 el bit IOC_IrqEn (bit 12).
-	//// CDMACR (CDMA Control – Offset 00h), página 16.
-	//// Dirección absoluta 0x44a00000
+	//// Habilita interrupciones por finalización de transmisión.
+	//// CDMACR (CDMA Control – Offset 00h), página 16. Dirección absoluta 0x44a00000
 	dma_ctlr->cdmacr |=  DMA_CRMSK_IRQEN;  // DMA Ctlr's Enable Interrupt
 
 	//// Ingresa al CDMACR Register para limpiar el bit Err_IrqEn (bit 14).		
-	//// CDMACR (CDMA Control – Offset 00h), página 15.
-	//// Dirección absoluta 0x44a00000										
+	//// Deshabilita interrupciones por errores.
+	//// CDMACR (CDMA Control – Offset 00h), página 15. Dirección absoluta 0x44a00000	
 	dma_ctlr->cdmacr &= ~DMA_CRMSK_IRQERR; // DMA Ctlr's Disable Error Interrupt
 
 	//// Ingresa al SA Register para setear la dirección orígen.
@@ -634,13 +644,13 @@ void dmacpy(void volatile *dst, const void volatile *src, size_t len) //// Docum
 	//// Dirección absoluta 0x44a00018
 	dma_ctlr->sa  = (int) src;			// Set DMA Source Address
 
-	//// Ingresa al DA Register para setear la dirección destino.
+	//// Ingresa al DA Register para cargar contenido del buffer.
 	//// DA (CDMA Destination Address – Offset 20h), página 29.
 	//// Dirección absoluta 0x44a00020																		
 	dma_ctlr->da  = (int) dst;			// Set DMA Destination Address
 
 	//// Ingreso al para determinar BTT Regiser la cantidad de bits de transferencia.			
-	//// BTT (CDMA Bytes to Transfer – Offset 28h), página 31.
-	//// Dirección absoluta es 0x44a028						
+	//// Inicia la transmisión de los datos.		
+	//// BTT (CDMA Bytes to Transfer – Offset 28h), página 31. Dirección absoluta es 0x44a028	
 	dma_ctlr->btt = len; 				// Set DMA Byte Transfer
 }
